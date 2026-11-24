@@ -1,7 +1,7 @@
 # Building the engine for Windows
 
-The Windows engine is the same tree as the Mac's (`docs/engine-build.md`): **Chromium 158.0.8127.36**, **Helium**
-0.22.2 (helium-chromium) with **helium-windows** 0.22.2.1 in place of helium-macos, then our patch series. **x64**
+The Windows engine is the same tree as the Mac's (`docs/engine-build.md`): **Chromium 158.0.8127.88**, **Helium**
+0.22.4 (helium-chromium) with **helium-windows** 0.22.4.1 in place of helium-macos, then our patch series. **x64**
 engines are cross-built on a **Linux host**, in **`msi`'s WSL 2 Ubuntu** ([On a Linux host](#on-a-linux-host)):
 Linux is Chromium's supported host for Windows cross builds (`docs/win_cross.md` in the tree). **ARM64** engines
 cannot safely be built on x86_64 hosts (including `msi`'s WSL) while V8's `mksnapshot` arm64 simulator produces
@@ -199,8 +199,8 @@ must not be published, and the repo is public.
 
 ## Helium for Windows
 
-helium-windows 0.22.2.1 (`35ea155`) is Helium's Windows packaging for 0.22.2; its `helium-chromium` submodule is exactly
-the 0.22.2 tag we pin (`f32f2c0`). No Windows engine has been built from it yet: the prebuilt in `prebuilt.json` is from 0.22.1 (its `source`, `38e436c`, pins 0.22.1, and the release source archive follows it), and 0.22.2.1 adds `helium/windows/bundle-hyphenation-data` to the Windows series. The weekly Upstream pins workflow reports that lag as the Windows published engine behind ([engine-build.md](engine-build.md#tracking-upstream)). Under 0.21.1.1 (`d6806de`) the submodule sat one commit past the tag (`42da6c5`, only `devutils/set_quilt_vars`), so
+helium-windows 0.22.4.1 (`4f7143d`) is Helium's Windows packaging for 0.22.4; its `helium-chromium` submodule is exactly
+the 0.22.4 tag we pin (`41a32da`), and its series is the same as 0.22.2.1's. No Windows engine has been built from it yet: the prebuilt in `prebuilt.json` is still Chromium 158.0.8127.36 (its `source` pins Helium 0.22.2, and the release source archive follows it). `prebuilt.json`'s `chromium` may lag the pins like this, never lead them (`upstream-pins.mjs --check`). The weekly Upstream pins workflow reports that lag as the Windows published engine behind ([engine-build.md](engine-build.md#tracking-upstream)). Under 0.21.1.1 (`d6806de`) the submodule sat one commit past the tag (`42da6c5`, only `devutils/set_quilt_vars`), so
 the patches are the same. `helium-pins.ini` pins both. Over helium-chromium's series it adds:
 
 - ungoogled-chromium's Windows patches: build fixes (`windows-fix-*`, `windows-disable-reorder-fix-linking`,

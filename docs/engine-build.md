@@ -1,8 +1,8 @@
 # Building the engine from source
 
 Ardia runs on ArdiaCore: Chrome's own framework (`//chrome:chrome_framework`) built from our Chromium tree, with our
-layers linked in (`docs/ardiacore-spike.md`). The tree is **Chromium 158.0.8127.36** (`CHROMIUM_VERSION` in
-`env.sh`), plus **Helium** 0.22.2 (helium-chromium) and 0.22.2.1 (helium-macos) minus a short skip list, then our
+layers linked in (`docs/ardiacore-spike.md`). The tree is **Chromium 158.0.8127.88** (`CHROMIUM_VERSION` in
+`env.sh`), plus **Helium** 0.22.4 (helium-chromium) and 0.22.4.1 (helium-macos) minus a short skip list, then our
 patch series. Nothing of CEF's is checked out or built. CEF left the tree
 on 2026-10-09: its 117 patches to Chrome are gone, except a few kept as `chromium-cef-carryover.patch`
 ([below](#cefs-117-patches)), and the seams of theirs ArdiaCore used are our own hooks H1–H6
@@ -644,7 +644,7 @@ Rules for editing the tree after the first build:
      checkout first and syncing again took 3.5 minutes in all, so do that up front.
   5. Step 3's `guard` stage fails when a skipped patch has left Helium's series (check what replaced it) or an
      applied one now touches what a skip protects (Safe Storage, password saving, Sparkle, the product dir, mDNS);
-     `GUARD_ALLOWED` in `03-helium.py` lists the hits reviewed for 0.19.4 (unchanged through 0.22.2). A patch that no longer applies without
+     `GUARD_ALLOWED` in `03-helium.py` lists the hits reviewed for 0.19.4 (unchanged through 0.22.4). A patch that no longer applies without
      fuzz fails `patches`, and names any skipped patch that shares its files.
   6. Our patches and the hooks may need their context refreshed; `series.py check` and `apply.sh --check` say
      which. A patch whose file moved is rewritten for the new path, and the new path's file goes into the series
@@ -653,7 +653,7 @@ Rules for editing the tree after the first build:
 ## Helium
 
 [Helium](https://github.com/imputnet/helium-chromium) is built on ungoogled-chromium. Step 3 (`03-helium.py`) applies
-helium-chromium 0.22.2's series and then helium-macos 0.22.2.1's, as `patch -p1 -l -N` with no fuzz (Helium allows 2).
+helium-chromium 0.22.4's series and then helium-macos 0.22.4.1's, as `patch -p1 -l -N` with no fuzz (Helium allows 2).
 Helium's build-time downloads (its uBlock Origin, the onboarding page, the non-free search engine data) are never
 fetched, and the hunks of its patches that edit them are left out.
 
@@ -666,11 +666,11 @@ fetched, and the hunks of its patches that edit them are left out.
 | `ungoogled-chromium/fix-building-without-mdns-and-service-discovery` | empties `DnsSdDeviceLister`; the Cast dialog needs mDNS |
 | `helium/macos/change-keychain-name` | renames the Safe Storage item; every user's passwords and cookies are encrypted with "Ardia Safe Storage" (`chromium-safe-storage-name.patch`) |
 | `helium/macos/change-product-dir-name` | moves the fallback product dir to `net.imput.helium` |
-| `rebel/macos/sparkle-integration`, `helium/macos/updater/{fixup-sparkle-glue,sparkle2-integration,disable-default-updater}` | Sparkle inside the framework; the app has its own updater |
+| `helium/macos/updater/{sparkle-glue,sparkle2-integration}` | Sparkle inside the framework; the app has its own updater |
 | `helium/ui/crash-dialog` | a startup infobar asking to upload crashes to `crash.helium.computer` |
 | `helium/core/use-system-python3`, `helium/core/rbe-nativelink-config`, `helium/macos/rbe-linux-clang-wrapper` | Helium's build setup (`.gn`'s `script_executable` would rerun every action; its remote build) |
 | `helium/macos/chromium-signing` | Helium's signing flow; `scripts/release.sh` signs Ardia |
-| `helium/core/pins/{pin-state,pin-sync,sync-splits,sync-drags,hibernate-on-close,pinned-url,open-links-outside,migrate-legacy-pins}`, `helium/ui/pins-ui` | Helium 0.22.2's shared pinned tabs and their tab-strip UI; Ardia keeps its own pins in the sidebar |
+| `helium/core/pins/{pin-state,pin-sync,sync-splits,sync-drags,hibernate-on-close,pinned-url,open-links-outside,migrate-legacy-pins,persistent-pins-pref}`, `helium/ui/pins-ui` | Helium 0.22.2's shared pinned tabs (and 0.22.4's pref that turns them off) and their tab-strip UI; Ardia keeps its own pins in the sidebar |
 
 The `guard` stage checks, before anything is applied, that every skipped patch is still in Helium's series and that no
 applied patch's added lines touch what a skip protects, beyond the reviewed hits in `GUARD_ALLOWED`. Some patches
@@ -775,6 +775,32 @@ step is checked against the bot's own comments, so a run that failed halfway is 
 repeated comment. Run it locally with `GITHUB_TOKEN=$(gh auth token) node scripts/engine/upstream-pins.mjs` (add
 `--issue --dry-run` with `GITHUB_REPOSITORY` to see the issue plan; real writes come only from the workflow), or
 dispatch the workflow with `dry_run`. The script and the workflow sit outside every engine key.
+
+### 0.22.2 → 0.22.4 (Chromium 158.0.8127.88, 2026-11-24)
+
+A Chromium patch release, through Helium 0.22.4, helium-macos 0.22.4.1 (pinned by commit, `0b5bf12`, before its tag was
+published), helium-linux 0.22.4.1 and helium-windows 0.22.4.1. Chromium's only security fix is CVE-2026-134401
+(`4338319`, "Disable VariationsService HTTP fallback by default"), which never ran in Ardia: Helium's
+`bromite/disable-fetching-field-trials` makes `IsFetchingEnabled()` return `false`, so no seed fetch is made and none
+falls back to HTTP. It also brings the Variations seed key rotation (`b7c78a3`) and `884ba9c`, which reads File System
+Access handles that sites stored in IndexedDB before 158. What changed in Helium, and what we did:
+
+- **Series.** helium-chromium added `helium/core/add-cache-encryption-flag` (an `enable-cache-encryption` switch and
+  chrome://flags entry, off by default), `helium/core/pins/persistent-pins-pref` and `helium/ui/drag-to-pin` (pin and
+  unpin by dragging in Chrome's own tab strip), and removed `helium/core/sync/provider/repository` (its sync moved to
+  prefs). helium-macos folded `rebel/macos/sparkle-integration`, `helium/macos/updater/fixup-sparkle-glue` and
+  `helium/macos/updater/disable-default-updater` into one `helium/macos/updater/sparkle-glue`. helium-linux's and
+  helium-windows' series are unchanged. `deps.ini` moves uBlock Origin to 1.77.0, which we omit; `flags.gn` is unchanged.
+- **Skips.** `SKIP` swaps the three old Sparkle patches for `sparkle-glue` (its only shared file with an applied patch,
+  `chrome_command_ids.h`, is a separate hunk of `native-translation-context-option`) and adds `persistent-pins-pref`: it
+  edits `helium_pins_service.cc` and the other files only the skipped pins patches create, and nothing later in the
+  series refers to its pref. `drag-to-pin` stays applied: it edits only Chromium's own tab-strip files and needs none of
+  the skipped pins patches. The `guard` stage passes on both platforms with the same reviewed hits (mac: 22 skips, 372
+  applied patches, 4 hits; linux: 18 skips, 361 applied patches, 3 hits).
+- **Pins.** `upstream-pins.mjs --check` now lets `prebuilt.json`'s `chromium` lag the pins (never lead them): the
+  published Windows engine is still 158.0.8127.36 until one is built from these pins.
+- **Not built yet.** No engine, series base or prebuilt has been built from these pins: the series bases in
+  `scripts/engine/series-bases.tsv` need `series-base-pack.py` on a builder, then the Mac, Linux and Windows engines.
 
 ### 0.21.1 → 0.21.2 (Chromium 157.0.8103.50, 2026-11-12)
 

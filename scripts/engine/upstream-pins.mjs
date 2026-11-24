@@ -167,8 +167,10 @@ export function checkPinConsistency(pins) {
     [`${PIN_FILES.env} CHROMIUM_VERSION`, pins.env.chromium],
     [`${PIN_FILES.macLinuxIni} [chromium] version`, pins.macLinuxIni.chromium],
     [`${PIN_FILES.windowsIni} [chromium] version`, pins.windowsIni.chromium],
-    [`${PIN_FILES.windowsPrebuilt} chromium`, pins.windowsPrebuilt.chromium],
   ]);
+  if (compareVersions(pins.windowsPrebuilt.chromium, pins.env.chromium) > 0) {
+    problems.push(`Chromium version: ${PIN_FILES.windowsPrebuilt} chromium ${pins.windowsPrebuilt.chromium} is newer than ${PIN_FILES.env} CHROMIUM_VERSION ${pins.env.chromium}`);
+  }
   agree("helium-chromium tag", [
     [`${PIN_FILES.env} HELIUM_TAG`, pins.env.heliumChromium],
     [`${PIN_FILES.macLinuxIni} [helium-chromium] tag`, pins.macLinuxIni.heliumChromium.tag],
@@ -242,7 +244,7 @@ export function compare(pins, upstream) {
       "helium-linux": [pins.env.heliumLinux, pins.macLinuxIni.heliumLinux.tag],
     },
     windows: {
-      chromium: [pins.windowsIni.chromium, pins.windowsPrebuilt.chromium, pins.env.chromium],
+      chromium: [pins.windowsIni.chromium, pins.env.chromium],
       "helium-chromium": [pins.windowsIni.heliumChromium.tag, pins.env.heliumChromium],
       "helium-windows": [pins.windowsIni.heliumWindows.tag],
     },
