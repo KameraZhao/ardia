@@ -142,7 +142,7 @@ test("production graph uses current Linux adapters and one canonical shared stat
   assert.ok(graph.get(`${desktop}main.tsx`).importedIds.includes(`${desktop}TrafficLights.tsx`), "Linux draws its own traffic lights when they are chosen");
   assert.ok(graph.get(`${desktop}TrafficLights.tsx`).importedIds.includes(`${desktop}captionControls.ts`), "the traffic lights close, minimize and maximize through the same adapters as the native buttons");
 
-  for (const [twin, suffix] of [["lib/platformFeatures", "linux"], ["lib/platformTerms", "linux"], ["lib/platformChrome", "desktop"], ["state/commands/comboWords", "desktop"], ["state/tabs/engineKeptCodes", "desktop"]]) {
+  for (const [twin, suffix] of [["lib/platformFeatures", "linux"], ["lib/platformTerms", "linux"], ["lib/platformChrome", "desktop"], ["state/commands/comboWords", "desktop"], ["state/tabs/engineKeptCodes", "desktop"], ["lib/pageStacking", "desktop"]]) {
     assert.ok(graph.has(`${browser}${twin}.${suffix}.ts`), `${twin} resolves to its .${suffix} twin`);
     assert.ok(!graph.has(`${browser}${twin}.ts`), `the macOS ${twin} stays out of the Linux bundle`);
   }
@@ -327,6 +327,7 @@ const WIN_TWINS = [
   ["state/telemetry/copyWords", "win"],
   ["platform/windowsUpdateCounts", "win"],
   ["state/tabs/engineKeptCodes", "desktop"],
+  ["lib/pageStacking", "desktop"],
 ];
 const WINDOWS_WORDING = new Set([`${browser}lib/platformTerms.windows.ts`, `${browser}lib/platformChrome.windows.ts`, `${browser}state/telemetry/copyWords.windows.ts`]);
 const linuxOnly = (id) => id.startsWith(`${desktop}platform/linux/`) || /\/src\/platform\/[^/]+\.linux\.tsx?$/.test(id) || /\/apps\/browser\/src\/.+\.linux\.tsx?$/.test(id);

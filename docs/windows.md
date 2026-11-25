@@ -800,7 +800,9 @@ folder and refused all 3 launches), the concurrent-runs check (`ports.ps1`) and
   restore-state recovery and launch log at the WebUI folder, and `GuardBrowserLaunch` waits on the WebUI profile's own
   mutex, so a relaunch waits for the closing WebUI instance, never for the RNW one.
 - A second `--ardia-shell=webui` launch reaches the first through Chromium's process singleton (`g_ardia_win_relaunched`),
-  which raises the existing window instead of opening a Chromium browser window.
+  which raises the existing window instead of opening a Chromium browser window. A launch that carries links raises
+  nothing itself while a window takes links and is listening (`NextStartStep` in `webui_window_policy.h`): the app opens them where they
+  belong and focuses that window, so a link into Little Ardia never brings the main window forward.
 
 ### What the pilot is
 
