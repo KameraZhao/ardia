@@ -1,0 +1,144 @@
+name: Zh-Hans Sync & macOS DMG
+
+on:
+  schedule:
+    - cron: "0 4 * * *"
+  workflow_dispatch:
+    inputs:
+      force_build:
+        description: "Build DMG even if upstream has no new commits"
+        type: boolean
+        default: true
+  push:
+    branches: [main]
+    paths:
+      - "apps/browser/src/lib/i18n/**"
+      - "packages/shell/ios/ShellLocalization.swift"
+      - "scripts/build-zh-hans-dmg.sh"
+      - ".github/workflows/zh-hans-dmg.yml"
+
+permissions:
+  contents: write
+  issues: write
+
+concurrency:
+  group: zh-hans-dmg-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  HOMEBREW_NO_AUTO_UPDATE: 1
+  ARDIACORE_PREBUILT_REPO: ardia-browser/ardia
+
+jobs:
+  sync:
+    if: github.repository != 'ardia-browser/ardia'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    outputs:
+      should_build: ${{ steps.sync.outputs.should_build }}
+      upstream_merged: ${{ steps.sync.outputs.upstream_merged }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+      - id: sync
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git remote add upstream https://github.com/ardia-browser/ardia.git
+          git fetch upstream main --quiet
+
+          if git show upstream/main:apps/browser/src/lib/i18n/locale.ts >/dev/null 2>&1; then
+            echo "upstream_merged=true" >> "$GITHUB_OUTPUT"
+            echo "should_build=false" >> "$GITHUB_OUTPUT"
+            echo "Upstream main already includes Simplified Chinese localization."
+            exit 0
+          fi
+
+          echo "upstream_merged=false" >> "$GITHUB_OUTPUT"
+          ahead=$(git rev-list --count HEAD..upstream/main)
+          if [ "$ahead" -eq 0 ]; then
+            echo "Already up to date with upstream/main."
+            if [ "${{ github.event_name }}" = "push" ] || [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+              echo "should_build=true" >> "$GITHUB_OUTPUT"
+            else
+              echo "should_build=false" >> "$GITHUB_OUTPUT"
+            fi
+            exit 0
+          fi
+
+          if git merge --no-edit upstream/main; then
+            git push origin HEAD:main
+            echo "should_build=true" >> "$GITHUB_OUTPUT"
+          else
+            git merge --abort || true
+            echo "should_build=false" >> "$GITHUB_OUTPUT"
+            gh issue create --repo "${{ github.repository }}" \
+              --title "Upstream sync conflict on $(date -u +%Y-%m-%d)" \
+              --body "Automatic merge of \`ardia-browser/ardia@main\` ($ahead new commits) hit merge conflicts. Please resolve locally and push to \`main\`." || true
+            exit 1
+          fi
+
+  build-dmg:
+    needs: sync
+    if: github.repository != 'ardia-browser/ardia' && needs.sync.outputs.should_build == 'true'
+    runs-on: macos-15
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: main
+          fetch-depth: 0
+      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - id: engine-key
+        run: echo "key=$(engine/engine-key.sh --platform macos)" >> "$GITHUB_OUTPUT"
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+        with:
+          path: apps/browser/build-ardiacore/prebuilt
+          key: engine-${{ steps.engine-key.outputs.key }}
+          restore-keys: engine-
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+        with:
+          path: |
+            apps/browser/macos/Pods
+            ~/Library/Caches/CocoaPods
+          key: pods-${{ hashFiles('apps/browser/macos/Podfile', 'apps/browser/macos/Podfile.lock', 'pnpm-lock.yaml', 'patches/**') }}
+          restore-keys: pods-
+      - uses: ./.github/actions/core-rs-xcframework
+      - id: dmg
+        run: |
+          set -euo pipefail
+          chmod +x scripts/build-zh-hans-dmg.sh
+          scripts/build-zh-hans-dmg.sh dist/zh-hans | tee build-dmg.log
+          dmg_path=$(sed -n 's/^DMG_PATH=//p' build-dmg.log | tail -n 1)
+          echo "path=$dmg_path" >> "$GITHUB_OUTPUT"
+          echo "name=$(basename "$dmg_path")" >> "$GITHUB_OUTPUT"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: ${{ steps.dmg.outputs.name }}
+          path: ${{ steps.dmg.outputs.path }}
+          retention-days: 14
+      - name: Publish GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          tag="zh-hans-latest"
+          dmg="${{ steps.dmg.outputs.path }}"
+          sha="$(git rev-parse --short HEAD)"
+          notes="Automated Simplified Chinese (zh-Hans) macOS arm64 ad-hoc signed build from commit \`$sha\`.\n\nIf macOS Gatekeeper warns on first launch (unsigned/ad-hoc build), run:\n\`\`\`sh\nxattr -cr /Applications/Ardia.app\n\`\`\`"
+          if gh release view "$tag" --repo "${{ github.repository }}" >/dev/null 2>&1; then
+            gh release upload "$tag" "$dmg" --clobber --repo "${{ github.repository }}"
+            gh release edit "$tag" --notes "$(printf '%b' "$notes")" --repo "${{ github.repository }}"
+          else
+            gh release create "$tag" "$dmg" --title "Ardia 简体中文版 (Latest)" --notes "$(printf '%b' "$notes")" --repo "${{ github.repository }}"
+          fi
