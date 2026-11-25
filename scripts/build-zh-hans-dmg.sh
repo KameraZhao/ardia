@@ -34,7 +34,7 @@ echo "==> Building Rust core xcframework"
 echo "==> Installing CocoaPods"
 (cd "$root/apps/browser/macos" && pod install)
 
-version="$(sed -n 's/.*MARKETING_VERSION = \([^;]*\);/\1/p' "$root/apps/browser/macos/Ardia.xcodeproj/project.pbxproj" | head -n 1 | tr -d '[:space:]')"
+version="$(sed -n 's/.*MARKETING_VERSION = \([^;]*\);/\1/p' "$root/apps/browser/macos/Ardia.xcodeproj/project.pbxproj" | head -n 1 | tr -d '[:space:]"')"
 version="${version:-0.0.0}"
 short_sha="$(git -C "$root" rev-parse --short HEAD 2>/dev/null || echo local)"
 archive="$out_dir/Ardia.xcarchive"
