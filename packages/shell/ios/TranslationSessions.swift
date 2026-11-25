@@ -83,13 +83,20 @@ enum TranslationSessions {
       plain: { text in
         try? await run(source: key.source, target: key.target, standard: standard, { try await $0.translate(text).targetText })
       },
-      linked: attributedAvailable ? { pieces in
-        guard #available(macOS 26.4, *) else { return nil }
-        let text = LinkedPieces.text(pieces)
-        guard let translated = try? await run(source: key.source, target: key.target, standard: standard, { try await $0.translate(text).attributedTargetText })
-        else { return nil }
-        return LinkedPieces.parts(of: translated, over: pieces)
-      } : nil
+      linked: {
+        #if compiler(>=6.3)
+        if attributedAvailable {
+          return { (pieces: [String]) async -> [String]? in
+            guard #available(macOS 26.4, *) else { return nil }
+            let text = LinkedPieces.text(pieces)
+            guard let translated = try? await run(source: key.source, target: key.target, standard: standard, { try await $0.translate(text).attributedTargetText })
+            else { return nil }
+            return LinkedPieces.parts(of: translated, over: pieces)
+          }
+        }
+        #endif
+        return nil
+      }()
     )
   }
 
@@ -159,10 +166,12 @@ enum TranslationSessions {
   private static func make(source: String, target: String, standard: Bool) async -> TranslationSession {
     let from = Locale.Language(identifier: source), to = Locale.Language(identifier: target)
     if standard { return TranslationSession(installedSource: from, target: to) }
+    #if compiler(>=6.3)
     if #available(macOS 26.4, *), await LanguageAvailability(preferredStrategy: .lowLatency).status(from: from, to: to) == .installed {
       lowLatencyPairs.insert(pairKey(source, target))
       return TranslationSession(installedSource: from, target: to, preferredStrategy: .lowLatency)
     }
+    #endif
     lowLatencyPairs.remove(pairKey(source, target))
     return TranslationSession(installedSource: from, target: to)
   }

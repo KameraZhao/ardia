@@ -142,7 +142,9 @@ final class EdgeFadeMask: ExpoView {
       let edge = min(0.5, fadeWidth / width)
       fade.frame = bounds
       fade.locations = [0, NSNumber(value: edge), NSNumber(value: 1 - edge), 1]
-      fade.colors = [1 - (1 - floor) * left, 1, 1, 1 - (1 - floor) * right].map { NSColor.black.withAlphaComponent($0).cgColor }
+      let leftAlpha: CGFloat = 1 - (1 - floor) * left
+      let rightAlpha: CGFloat = 1 - (1 - floor) * right
+      fade.colors = [leftAlpha, 1, 1, rightAlpha].map { NSColor.black.withAlphaComponent($0).cgColor }
       (layer as? MaskKeepingLayer)?.kept = fade
       if layer.mask !== fade { layer.mask = fade }
     } else {
